@@ -16,12 +16,11 @@ from abstract_transaction_session import *
 
 
 def execute(event, context):
-    return run_session_transaction(event, context, _execute)
+    return run_session(event, context, _execute)
 
 
-def _execute(event, context, session):
+def _execute(event, context, session: ClientSession):
     try:
-
         if 'from' not in event or event['from'] is None:
             return Response(status_code=400, body=json.dumps({"message": "from is a mandatory object"}))
 
@@ -49,40 +48,52 @@ def _execute(event, context, session):
         to_id = event['to']['id']
         amount = event['amount']['value']
 
-        lock_document(accounts_collection, ObjectId(from_id), session)
-        lock_document(accounts_collection, ObjectId(to_id), session)
+        def look_account(event, context, _session):
+            lock_document(accounts_collection, ObjectId(event['current_look_account']), _session)
 
-        time.sleep(5)
+        event['current_look_account'] = from_id
+        run_transaction(session, event, context, look_account)
 
-        accounts_collection.find_one_and_update({
-            "_id": ObjectId(from_id)
-        }, {
-            "$inc": {
-                "balance": amount
-            }
-        }, session=session)
+        event['current_look_account'] = to_id
+        run_transaction(session, event, context, look_account)
 
-        accounts_collection.find({
-            "_id": ObjectId(to_id)
-        }, {
-            "$inc": {
-                "balance": amount
-            }
-        }, session=session)
+        def transfer(event, context, _session):
+            accounts_collection.update_one({
+                "_id": ObjectId(from_id)
+            }, {
+                "$inc": {
+                    "balance": amount
+                }
+            }, session=_session)
 
-        events_collection = db.get_collection("events_collection")
-        events_collection.insert_one({
-            "type": "transfer_balance",
-            "status": True
-        }, session=session)
+            accounts_collection.update_one({
+                "_id": ObjectId(to_id)
+            }, {
+                "$inc": {
+                    "balance": amount
+                }
+            }, session=_session)
+            time.sleep(15)
+
+            events_collection = db.get_collection("events_collection")
+            events_collection.insert_one({
+                "type": "transfer_balance",
+                "status": True
+            }, session=_session)
+            return "Transfer Done Successfully"
+
+        _res = run_transaction(session, event, context, transfer)
 
         return Response(status_code=200,
-                        body=json.dumps({"status": True, "message": "transfer balance finished successfully"}))
+                        body=json.dumps({"status": True, "message": _res}))
 
+    except PyMongoError as ex:
+        print(ex.__str__())
+        # raise Exception("PyMongoError Exception Occur in Account Module")
+        return Response(status_code=400, body=json.dumps({"message": "PyMongoError Error, [transfer_balance_2.py]"}))
     except Exception as ex:
-        return Response(400, json.dumps({"message": "General Exception Occur " + ex.__str__()}))
-
-
+        # raise Exception("General Exception Occur in Account Module")
+        return Response(status_code=400, body=json.dumps({"message": "Exception Error, [transfer_balance_2.py]"}))
 
 
 account1 = '63e25b545c73d8ea1c571260'
