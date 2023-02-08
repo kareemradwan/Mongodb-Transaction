@@ -2,7 +2,6 @@ import json
 import os
 import logging
 import pdb
-import pymongo.errors
 import time
 import uuid
 from datetime import datetime
@@ -23,7 +22,6 @@ def execute(event, context):
 def _execute(event, context, session):
     try:
 
-        time.sleep(2)
         if 'username' not in event or event['username'] is None:
             return Response(status_code=400, body=json.dumps({"message": "username is a mandatory field"}))
 
@@ -41,24 +39,21 @@ def _execute(event, context, session):
             return Response(status_code=401, body=json.dumps({"message": "Wrong username or password"}))
 
         user["_id"] = str(user['_id'])
+
         lock_document(users_collection, ObjectId(user["_id"]), session)
+
+        time.sleep(15)
+
         events_collection = db.get_collection("events_collection")
         events_collection.insert_one({
             "type": "login",
             "status": True
-        })
+        }, session=session)
 
         return Response(status_code=200, body=json.dumps(user))
-    except pymongo.errors.PyMongoError as ex:
-        print("pymongo.errors.PyMongoError " + ex.__str__())
-        if "WriteConflict" in ex.__str__():
-            return Response(400, json.dumps({"message": "WriteConflict Occur "}))
-        else:
-            return Response(400, json.dumps({"message": "General Database Error"}))
 
     except Exception as ex:
-        print("Exception " + ex.__str__())
-        return Response(400, json.dumps({"message": "Internal Server Error"}))
+        return Response(400, json.dumps({"message": "General Exception Occur " + ex.__str__()}))
 
 
 response = execute({

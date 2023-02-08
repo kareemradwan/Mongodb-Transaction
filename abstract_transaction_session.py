@@ -17,13 +17,18 @@ _logger = logging.getLogger()
 """
 You can't execute `run_transaction()` inside `function` 
 """
+
+
 def run_session_transaction(event, context, function):
     _session = client.start_session()
     try:
 
         _session.start_transaction()
         response = function(event, context, _session)
-        _session.commit_transaction()
+        try:
+            _session.commit_transaction()
+        except:
+            pass
         return response.result()
 
     except ValueError as ex:
@@ -37,7 +42,7 @@ def run_session_transaction(event, context, function):
     except Exception as ex:
         if _session.in_transaction:
             _session.abort_transaction()
-        raise  ex
+        raise ex
     finally:
         _session.end_session()
 
@@ -48,6 +53,8 @@ def run_session_transaction(event, context, function):
     Must Return: Response
     @:return Response
 """
+
+
 def run_session(event, context, function):
     _session = client.start_session()
     try:
@@ -60,10 +67,13 @@ def run_session(event, context, function):
     finally:
         _session.end_session()
 
+
 """
     will return object data not Response
     for example [] , {}, "OK"
 """
+
+
 def run_transaction(_session: ClientSession, event, context, function):
     try:
         _session.start_transaction()
