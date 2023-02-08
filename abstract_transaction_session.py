@@ -34,15 +34,15 @@ def run_session_transaction(event, context, function):
     except ValueError as ex:
         if _session.in_transaction:
             _session.abort_transaction()
-        raise ex
+        return Response(400, json.dumps({"message": "Invalid arguments"})).result()
     except PyMongoError as ex:
         if _session.in_transaction:
             _session.abort_transaction()
-        raise ex
+        return Response(status_code=400, body=json.dumps({"message": "Database Error"})).result()
     except Exception as ex:
         if _session.in_transaction:
             _session.abort_transaction()
-        raise ex
+        return Response(status_code=500, body=json.dumps({"message": "Internal Server Error"})).result()
     finally:
         _session.end_session()
 
@@ -60,10 +60,18 @@ def run_session(event, context, function):
     try:
         response = function(event, context, _session)
         return response.result()
+    except ValueError as ex:
+        if _session.in_transaction:
+            _session.abort_transaction()
+        return Response(400, json.dumps({"message": "Invalid arguments"})).result()
+    except PyMongoError as ex:
+        if _session.in_transaction:
+            _session.abort_transaction()
+        return Response(status_code=400, body=json.dumps({"message": "Database Error"})).result()
     except Exception as ex:
         if _session.in_transaction:
             _session.abort_transaction()
-        raise ex
+        return Response(status_code=500, body=json.dumps({"message": "Internal Server Error"})).result()
     finally:
         _session.end_session()
 
