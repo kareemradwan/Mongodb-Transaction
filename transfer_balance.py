@@ -48,21 +48,18 @@ def _execute(event, context, session: ClientSession):
         to_id = event['to']['id']
         amount = event['amount']['value']
 
-        def look_account(event, context, _session):
-            lock_document(accounts_collection, ObjectId(event['current_look_account']), _session)
-
-        event['current_look_account'] = from_id
-        run_transaction(session, event, context, look_account)
-
-        event['current_look_account'] = to_id
-        run_transaction(session, event, context, look_account)
+        def look_account(account_id, _session: ClientSession):
+            lock_document(accounts_collection, ObjectId(account_id), _session)
 
         def transfer(event, context, _session):
+            look_account(from_id, _session)
+            look_account(to_id, _session)
+
             accounts_collection.update_one({
                 "_id": ObjectId(from_id)
             }, {
                 "$inc": {
-                    "balance": amount
+                    "balance": -1 * amount
                 }
             }, session=_session)
 

@@ -49,21 +49,18 @@ def _execute(event, context, session: ClientSession):
         to_id = event['to']['id']
         amount = event['amount']['value']
 
-        def look_account(event, context, _session):
-            lock_document(accounts_collection, ObjectId(event['current_look_account']), _session)
-
-        event['current_look_account'] = from_id
-        run_transaction(session, event, context, look_account)
-
-        event['current_look_account'] = to_id
-        run_transaction(session, event, context, look_account)
+        def look_account(account_id, _session: ClientSession):
+            lock_document(accounts_collection, ObjectId(account_id), _session)
 
         def transfer(event, context, _session):
+            look_account(from_id, _session)
+            look_account(to_id, _session)
+
             accounts_collection.update_one({
                 "_id": ObjectId(from_id)
             }, {
                 "$inc": {
-                    "balance": amount
+                    "balance": -1 * amount
                 }
             }, session=_session)
 
@@ -84,15 +81,11 @@ def _execute(event, context, session: ClientSession):
 
         _res = run_transaction(session, event, context, transfer)
 
-        return Response(status_code=200,
-                        body=json.dumps({"status": True, "message": _res}))
+        return Response(status_code=200,body=json.dumps({"status": True, "message": _res}))
 
     except PyMongoError as ex:
-        print(ex.__str__())
-        # raise Exception("PyMongoError Exception Occur in Account Module")
         return  Response(status_code=400,  body= json.dumps({"message" : "PyMongoError Error, [transfer_balance_2.py]"}))
     except Exception as ex:
-        # raise Exception("General Exception Occur in Account Module")
         return  Response(status_code=400,  body= json.dumps({"message" : "Exception Error, [transfer_balance_2.py]"}))
 
 
