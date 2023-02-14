@@ -41,12 +41,13 @@ def _execute(event, context, session):
             return Response(status_code=401, body=json.dumps({"message": "Wrong username or password"}))
 
         user["_id"] = str(user['_id'])
+        user["lock_timestamp"] = None
         lock_document(users_collection, ObjectId(user["_id"]), session)
         events_collection = db.get_collection("events_collection")
         events_collection.insert_one({
             "type": "login",
             "status": True
-        })
+        }, session = session)
 
         return Response(status_code=200, body=json.dumps(user))
     except pymongo.errors.PyMongoError as ex:
@@ -58,7 +59,7 @@ def _execute(event, context, session):
 
     except Exception as ex:
         print("Exception " + ex.__str__())
-        return Response(400, json.dumps({"message": "Internal Server Error"}))
+        return Response(400, json.dumps({"message": "Internal Server Error 2"}))
 
 
 response = execute({
